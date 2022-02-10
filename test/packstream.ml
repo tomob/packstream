@@ -77,6 +77,17 @@ let test_64_byte_int _ctx =
   in
   List.iter internal examples
 
+let test_float _ctx =
+  let internal = fun f ->
+    let i = Int64.bits_of_float f in
+    let%bitstring bs = {| 0xC1 : 8; i : 64 : int,unsigned,bigendian |} in
+    assert_equal (Ok (Float f)) (parse bs)
+  and examples = [
+    1.23; 0.; -123.456
+  ]
+  in
+  List.iter internal examples
+
 let test_incomplete_fails _ctx =
   let prefixes = [
     "\xc8";
@@ -84,6 +95,8 @@ let test_incomplete_fails _ctx =
     "\xca"; "\xca\x01"; "\xca\x01\x02"; "\xca\x01\x02\x03";
     "\xcb"; "\xcb\x01"; "\xcb\x01\x02"; "\xcb\x01\x02\x03"; "\xcb\x01\x02\x03\x04";
     "\xcb\x01\x02\x03\x04\x05"; "\xcb\x01\x02\x03\x04\x05\x06"; "\xcb\x01\x02\x03\x04\x05\x06\x07";
+    "\xc1"; "\xc1\x01"; "\xc1\x01\x02"; "\xc1\x01\x02\x03"; "\xc1\x01\x02\x03\x04";
+    "\xc1\x01\x02\x03\x04\x05"; "\xc1\x01\x02\x03\x04\x05\x06"; "\xc1\x01\x02\x03\x04\x05\x06\x07";
   ] in
   List.iter
     (fun prefix -> assert_equal (Error "Invalid message") (parse (Bitstring.bitstring_of_string prefix)))
@@ -99,7 +112,8 @@ let all_tests =
    "test_16_byte_int" >:: test_16_byte_int;
    "test_32_byte_int" >:: test_32_byte_int;
    "test_64_byte_int" >:: test_64_byte_int;
-   "test_incomplete_fails" >:: test_incomplete_fails]
+   "test_incomplete_fails" >:: test_incomplete_fails;
+   "test_float" >:: test_float]
 
 let () =
   run_test_tt_main all_tests

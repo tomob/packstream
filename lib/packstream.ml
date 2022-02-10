@@ -3,10 +3,12 @@ type message =
   | True
   | False
   | Int of int
+  | Float of float
 
 let parse bitstring =
   match%bitstring bitstring with
   | {| 0xC0 : 8 |} -> Ok Null
+  | {| 0xC1 : 8; i : 64 : int, unsigned,bigendian |} -> Ok (Float (Int64.float_of_bits i))
   | {| 0xC2 : 8 |} -> Ok False
   | {| 0xC3 : 8 |} -> Ok True
   | {| 0xC8 : 8; i : 8 : int,signed,bigendian |} -> Ok (Int i)
