@@ -18,7 +18,7 @@ let test_tiny_int_negative (str, v) =
   assert_equal (Ok (Int v)) (parse bs)
 
 let test_tiny_int_positive i =
-  let%bitstring bs = {| i : 8 |} in
+  let%bitstring bs = {| i : 8 : int,signed |} in
   assert_equal (Ok (Int i)) (parse bs)
 
 let test_tiny_int _ctx =
@@ -77,6 +77,17 @@ let test_64_byte_int _ctx =
   in
   List.iter internal examples
 
+let test_incomplete_fails _ctx =
+  let prefixes = [
+    "\xc8";
+    "\xc9"; "\xc9\x01";
+    "\xca"; "\xca\x01"; "\xca\x01\x02"; "\xca\x01\x02\x03";
+    "\xcb"; "\xcb\x01"; "\xcb\x01\x02"; "\xcb\x01\x02\x03"; "\xcb\x01\x02\x03\x04";
+    "\xcb\x01\x02\x03\x04\x05"; "\xcb\x01\x02\x03\x04\x05\x06"; "\xcb\x01\x02\x03\x04\x05\x06\x07";
+  ] in
+  List.iter
+    (fun prefix -> assert_equal (Error "Invalid message") (parse (Bitstring.bitstring_of_string prefix)))
+    prefixes
 
 let all_tests =
   "all_tests" >:::
@@ -87,7 +98,8 @@ let all_tests =
    "test_8_byte_int" >:: test_8_byte_int;
    "test_16_byte_int" >:: test_16_byte_int;
    "test_32_byte_int" >:: test_32_byte_int;
-   "test_64_byte_int" >:: test_64_byte_int]
+   "test_64_byte_int" >:: test_64_byte_int;
+   "test_incomplete_fails" >:: test_incomplete_fails]
 
 let () =
   run_test_tt_main all_tests
