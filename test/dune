@@ -2,4 +2,5 @@
  (name packstream)
  (libraries packstream
             ounit2)
+ (preprocess (pps ppx_bitstring))
  )
