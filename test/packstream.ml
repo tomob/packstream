@@ -45,21 +45,21 @@ let test_tiny_int _ctx =
 
 let test_8_byte_int _ctx =
   let internal = fun i ->
-    let%bitstring bs = {| 0xC8 : 8; i : 8 : signed,int |} in
+    let%bitstring bs = {| 0xC8 : 8; i : 8 : signed,int,bigendian |} in
     assert_equal (Ok (Int i)) (parse bs)
   in
   List.iter internal (List.init 256 (fun i -> i - 128))
 
 let test_16_byte_int _ctx =
   let internal = fun i ->
-    let%bitstring bs = {| 0xC9 : 8; i : 16 : signed,int |} in
+    let%bitstring bs = {| 0xC9 : 8; i : 16 : signed,int,bigendian |} in
     assert_equal (Ok (Int i)) (parse bs)
   in
   List.iter internal (List.init 65536 (fun i -> i - 32768))
 
 let test_32_byte_int _ctx =
   let internal = fun (i:int32) ->
-    let%bitstring bs = {| 0xCA : 8; i : 32 : int |} in
+    let%bitstring bs = {| 0xCA : 8; i : 32 : int,bigendian |} in
     assert_equal (Ok (Int (Int32.to_int i))) (parse bs)
   and examples = [
     -2147483648; -32769; 32768; 2147483647
@@ -69,7 +69,7 @@ let test_32_byte_int _ctx =
 
 let test_64_byte_int _ctx =
   let internal = fun (i:int64) ->
-    let%bitstring bs = {| 0xCB : 8; i : 64 : int |} in
+    let%bitstring bs = {| 0xCB : 8; i : 64 : int,bigendian |} in
     assert_equal (Ok (Int (Int64.to_int i))) (parse bs)
   and examples = [
     -9223372036854775808L; -2147483649L; 2147483648L; 9223372036854775807L
