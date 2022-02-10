@@ -1,2 +1,5 @@
 (test
- (name packstream))
+ (name packstream)
+ (libraries packstream
+            ounit2)
+ )
