@@ -88,6 +88,21 @@ let test_float _ctx =
   in
   List.iter internal examples
 
+let test_bytes _ctx =
+  let cases = [
+    ("\xCC\x00", Bytes "");
+    ("\xCC\x03\x01\x02\x03", Bytes "\x01\x02\x03");
+    ("\xCD\x00\x00", Bytes "");
+    ("\xCD\x00\x03\x01\x02\x03", Bytes "\x01\x02\x03");
+    ("\xCE\x00\x00\x00\x00", Bytes "");
+    ("\xCE\x00\x00\x00\x03\x01\x02\x03", Bytes "\x01\x02\x03");
+  ] in
+  let internal = fun (s, v) ->
+    let bs = Bitstring.bitstring_of_string s
+    in assert_equal (Ok v) (parse bs)
+  in
+  List.iter internal cases
+
 let test_incomplete_fails _ctx =
   let prefixes = [
     "\xc8";
@@ -97,6 +112,9 @@ let test_incomplete_fails _ctx =
     "\xcb\x01\x02\x03\x04\x05"; "\xcb\x01\x02\x03\x04\x05\x06"; "\xcb\x01\x02\x03\x04\x05\x06\x07";
     "\xc1"; "\xc1\x01"; "\xc1\x01\x02"; "\xc1\x01\x02\x03"; "\xc1\x01\x02\x03\x04";
     "\xc1\x01\x02\x03\x04\x05"; "\xc1\x01\x02\x03\x04\x05\x06"; "\xc1\x01\x02\x03\x04\x05\x06\x07";
+    "\xcc"; "\xcc\x01"; "\xcc\x02\x00";
+    "\xcd"; "\xcd\x00"; "\xcd\x00\x01"; "\xcd\x00\x02\x00";
+    "\xce"; "\xce\x00"; "\xce\x00\x00\x00\x01";
   ] in
   List.iter
     (fun prefix -> assert_equal (Error "Invalid message") (parse (Bitstring.bitstring_of_string prefix)))
@@ -113,7 +131,8 @@ let all_tests =
    "test_32_byte_int" >:: test_32_byte_int;
    "test_64_byte_int" >:: test_64_byte_int;
    "test_incomplete_fails" >:: test_incomplete_fails;
-   "test_float" >:: test_float]
+   "test_float" >:: test_float;
+   "test_bytes" >:: test_bytes]
 
 let () =
   run_test_tt_main all_tests
