@@ -1,6 +1,13 @@
 open OUnit2
 open Packstream
 
+let run_test_cases cases =
+  let internal = fun (s, v) ->
+    let bs = Bitstring.bitstring_of_string s
+    in assert_equal (Ok v) (parse bs)
+  in
+  List.iter internal cases
+
 let test_null _ctx =
   let bs = Bitstring.bitstring_of_string "\xc0" in
   assert_equal (Ok Null) (parse bs)
@@ -19,26 +26,26 @@ let test_tiny_int_negative (str, v) =
 
 let test_tiny_int_positive i =
   let%bitstring bs = {| i : 8 : int,signed |} in
-  assert_equal (Ok (Int i)) (parse bs)
+  assert_equal (Ok (Int (Int64.of_int i))) (parse bs)
 
 let test_tiny_int _ctx =
   let negative = [
-    ("\xf0", -16);
-    ("\xf1", -15);
-    ("\xf2", -14);
-    ("\xf3", -13);
-    ("\xf4", -12);
-    ("\xf5", -11);
-    ("\xf6", -10);
-    ("\xf7", -9);
-    ("\xf8", -8);
-    ("\xf9", -7);
-    ("\xfa", -6);
-    ("\xfb", -5);
-    ("\xfc", -4);
-    ("\xfd", -3);
-    ("\xfe", -2);
-    ("\xff", -1);
+    ("\xf0", -16L);
+    ("\xf1", -15L);
+    ("\xf2", -14L);
+    ("\xf3", -13L);
+    ("\xf4", -12L);
+    ("\xf5", -11L);
+    ("\xf6", -10L);
+    ("\xf7", -9L);
+    ("\xf8", -8L);
+    ("\xf9", -7L);
+    ("\xfa", -6L);
+    ("\xfb", -5L);
+    ("\xfc", -4L);
+    ("\xfd", -3L);
+    ("\xfe", -2L);
+    ("\xff", -1L);
   ] in
   List.iter test_tiny_int_negative negative;
   List.iter test_tiny_int_positive (List.init 128 Fun.id)
@@ -46,21 +53,21 @@ let test_tiny_int _ctx =
 let test_8_byte_int _ctx =
   let internal = fun i ->
     let%bitstring bs = {| 0xC8 : 8; i : 8 : signed,int,bigendian |} in
-    assert_equal (Ok (Int i)) (parse bs)
+    assert_equal (Ok (Int (Int64.of_int i))) (parse bs)
   in
   List.iter internal (List.init 256 (fun i -> i - 128))
 
 let test_16_byte_int _ctx =
   let internal = fun i ->
     let%bitstring bs = {| 0xC9 : 8; i : 16 : signed,int,bigendian |} in
-    assert_equal (Ok (Int i)) (parse bs)
+    assert_equal (Ok (Int (Int64.of_int i))) (parse bs)
   in
   List.iter internal (List.init 65536 (fun i -> i - 32768))
 
 let test_32_byte_int _ctx =
   let internal = fun (i:int32) ->
     let%bitstring bs = {| 0xCA : 8; i : 32 : int,bigendian |} in
-    assert_equal (Ok (Int (Int32.to_int i))) (parse bs)
+    assert_equal (Ok (Int (Int64.of_int32 i))) (parse bs)
   and examples = [
     -2147483648; -32769; 32768; 2147483647
   ]
@@ -68,14 +75,14 @@ let test_32_byte_int _ctx =
   List.iter internal (List.map Int32.of_int examples)
 
 let test_64_byte_int _ctx =
-  let internal = fun (i:int64) ->
-    let%bitstring bs = {| 0xCB : 8; i : 64 : int,bigendian |} in
-    assert_equal (Ok (Int (Int64.to_int i))) (parse bs)
-  and examples = [
-    -9223372036854775808L; -2147483649L; 2147483648L; 9223372036854775807L
+  let cases = [
+    ("\xCB\128\000\000\000\000\000\000\000", Int (-9223372036854775808L));
+    ("\xCB\255\255\255\255\127\255\255\255", Int (-2147483649L));
+    ("\xCB\000\000\000\000\128\000\000\000", Int 2147483648L);
+    ("\xCB\127\255\255\255\255\255\255\255", Int 9223372036854775807L)
   ]
   in
-  List.iter internal examples
+  run_test_cases cases
 
 let test_float _ctx =
   let internal = fun f ->
@@ -88,13 +95,6 @@ let test_float _ctx =
   in
   List.iter internal examples
 
-let test_cases cases =
-  let internal = fun (s, v) ->
-    let bs = Bitstring.bitstring_of_string s
-    in assert_equal (Ok v) (parse bs)
-  in
-  List.iter internal cases
-
 let test_bytes _ctx =
   let cases = [
     ("\xCC\x00", Bytes "");
@@ -104,7 +104,7 @@ let test_bytes _ctx =
     ("\xCE\x00\x00\x00\x00", Bytes "");
     ("\xCE\x00\x00\x00\x03\x01\x02\x03", Bytes "\x01\x02\x03");
   ] in
-  test_cases cases
+  run_test_cases cases
 
 let test_strings _ctx =
   let cases = [
@@ -132,7 +132,7 @@ let test_strings _ctx =
     ("\xD2\x00\x00\x00\x01a", String "a");
     ("\xD0\x12\x47\x72\xC3\xB6\xC3\x9F\x65\x6E\x6D\x61\xC3\x9F\x73\x74\xC3\xA4\x62\x65", String "Größenmaßstäbe")
   ] in
-  test_cases cases
+  run_test_cases cases
 
 let test_incomplete_fails _ctx =
   let prefixes = [
