@@ -1,6 +1,6 @@
 (library
  (public_name packstream)
  (name packstream)
- (libraries bitstring)
- (preprocess (pps ppx_bitstring))
+ (libraries bitstring core)
+ (preprocess (pps ppx_bitstring ppx_deriving.show))
  )

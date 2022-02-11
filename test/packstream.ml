@@ -4,7 +4,9 @@ open Packstream
 let run_test_cases cases =
   let internal = fun (s, v) ->
     let bs = Bitstring.bitstring_of_string s
-    in assert_equal (Ok v) (parse bs)
+    in
+      (* print_string (show_message (Result.get_ok (parse bs))); print_newline (); *)
+      assert_equal (Ok v) (parse bs)
   in
   List.iter internal cases
 
@@ -134,8 +136,19 @@ let test_strings _ctx =
   ] in
   run_test_cases cases
 
+let test_lists _ctx =
+  let cases = [
+    ("\x90", List []);
+    ("\x93\x01\x02\x03", List [Int 1L; Int 2L; Int 3L]);
+    ("\x93\x01\xC1\x40\x00\x00\x00\x00\x00\x00\x00\x85\x74\x68\x72\x65\x65", List [Int 1L; Float 2.0; String "three"]);
+    ("\xD4\x28\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F\x20\x21\x22\x23\x24\x25\x26\x27\x28",
+     List (List.map (fun x -> Int x) (List.init 40 (fun x -> Int64.of_int (x + 1)))))
+  ] in
+  run_test_cases cases
+
 let test_incomplete_fails _ctx =
   let prefixes = [
+    (* Numbers *)
     "\xc8";
     "\xc9"; "\xc9\x01";
     "\xca"; "\xca\x01"; "\xca\x01\x02"; "\xca\x01\x02\x03";
@@ -146,6 +159,22 @@ let test_incomplete_fails _ctx =
     "\xcc"; "\xcc\x01"; "\xcc\x02\x00";
     "\xcd"; "\xcd\x00"; "\xcd\x00\x01"; "\xcd\x00\x02\x00";
     "\xce"; "\xce\x00"; "\xce\x00\x00\x00\x01";
+    (* Strings *)
+    "\x81"; "\x82a"; "\x83ab"; "\x84abc"; "\x85abcd"; "\x86abcde"; "\x87abcdef";
+    "\x88abcdefg"; "\x89abcdefgh"; "\x8aabcdefghi"; "\x8babcdefghij"; "\x8cabcdefghijk";
+    "\x8dabcdefghijkl"; "\x8eabcdefghijklm"; "\x8fabcdefghijklmn";
+    "\xD0\x01"; "\xD1\x00\x01"; "\xD2\x00\x00\x00\x01";
+    (* Lists *)
+    "\x91"; "\x92\x01"; "\x93\x01\x01"; "\x94\x01\x01\x01"; "\x95\x01\x01\x01\x01";
+    "\x96\x01\x01\x01\x01\x01"; "\x97\x01\x01\x01\x01\x01\x01"; "\x98\x01\x01\x01\x01\x01\x01\x01";
+    "\x99\x01\x01\x01\x01\x01\x01\x01\x01"; "\x9a\x01\x01\x01\x01\x01\x01\x01\x01\x01";
+    "\x9b\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01"; "\x9c\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01";
+    "\x9d\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01";
+    "\x9e\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01";
+    "\x9f\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01\x01";
+    "\xd4"; "\xd4\x01";
+    "\xd5"; "\xd5\x01"; "\xd5\x00\x01";
+    "\xd6"; "\xd6\x01"; "\xd6\x00\x00\x00\x01"
   ] in
   List.iter
     (fun prefix -> assert_equal (Error "Invalid message") (parse (Bitstring.bitstring_of_string prefix)))
@@ -164,7 +193,8 @@ let all_tests =
    "test_incomplete_fails" >:: test_incomplete_fails;
    "test_float" >:: test_float;
    "test_bytes" >:: test_bytes;
-   "test_strings" >:: test_strings]
+   "test_strings" >:: test_strings;
+   "test_lists" >:: test_lists]
 
 let () =
   run_test_tt_main all_tests
