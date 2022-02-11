@@ -5,6 +5,7 @@ type message =
   | Int of int
   | Float of float
   | Bytes of string
+  | String of string
 
 let parse bitstring =
   match%bitstring bitstring with
@@ -25,5 +26,10 @@ let parse bitstring =
   | {| 0xCC : 8; length :  8 ; bytes : length*8 : string |} -> Ok (Bytes bytes)
   | {| 0xCD : 8; length : 16 ; bytes : length*8 : string |} -> Ok (Bytes bytes)
   | {| 0xCE : 8; length : 32 ; bytes : (Int32.to_int length)*8 : string |} -> Ok (Bytes bytes)
+  (* Strings *)
+  | {| 0x8  : 4; length :  4 : unsigned ; str : length*8 : string |} -> Ok (String str)
+  | {| 0xD0 : 8; length :  8 : unsigned ; str : length*8 : string |} -> Ok (String str)
+  | {| 0xD1 : 8; length : 16 : unsigned ; str : length*8 : string |} -> Ok (String str)
+  | {| 0xD2 : 8; length : 32 : unsigned ; str : (Int32.to_int length)*8 : string |} -> Ok (String str)
   (* Failure case *)
   | {| _ |} -> Error "Invalid message"

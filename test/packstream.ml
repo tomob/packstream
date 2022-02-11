@@ -88,6 +88,13 @@ let test_float _ctx =
   in
   List.iter internal examples
 
+let test_cases cases =
+  let internal = fun (s, v) ->
+    let bs = Bitstring.bitstring_of_string s
+    in assert_equal (Ok v) (parse bs)
+  in
+  List.iter internal cases
+
 let test_bytes _ctx =
   let cases = [
     ("\xCC\x00", Bytes "");
@@ -97,11 +104,35 @@ let test_bytes _ctx =
     ("\xCE\x00\x00\x00\x00", Bytes "");
     ("\xCE\x00\x00\x00\x03\x01\x02\x03", Bytes "\x01\x02\x03");
   ] in
-  let internal = fun (s, v) ->
-    let bs = Bitstring.bitstring_of_string s
-    in assert_equal (Ok v) (parse bs)
-  in
-  List.iter internal cases
+  test_cases cases
+
+let test_strings _ctx =
+  let cases = [
+    ("\x80", String "");
+    ("\x81a", String "a");
+    ("\x82ab", String "ab");
+    ("\x83abc", String "abc");
+    ("\x84abcd", String "abcd");
+    ("\x85abcde", String "abcde");
+    ("\x86abcdef", String "abcdef");
+    ("\x87abcdefg", String "abcdefg");
+    ("\x88abcdefgh", String "abcdefgh");
+    ("\x89abcdefghi", String "abcdefghi");
+    ("\x8aabcdefghij", String "abcdefghij");
+    ("\x8babcdefghijk", String "abcdefghijk");
+    ("\x8cabcdefghijkl", String "abcdefghijkl");
+    ("\x8dabcdefghijklm", String "abcdefghijklm");
+    ("\x8eabcdefghijklmn", String "abcdefghijklmn");
+    ("\x8fabcdefghijklmno", String "abcdefghijklmno");
+    ("\xD0\x00", String "");
+    ("\xD0\x01a", String "a");
+    ("\xD1\x00\x00", String "");
+    ("\xD1\x00\x01a", String "a");
+    ("\xD2\x00\x00\x00\x00", String "");
+    ("\xD2\x00\x00\x00\x01a", String "a");
+    ("\xD0\x12\x47\x72\xC3\xB6\xC3\x9F\x65\x6E\x6D\x61\xC3\x9F\x73\x74\xC3\xA4\x62\x65", String "Größenmaßstäbe")
+  ] in
+  test_cases cases
 
 let test_incomplete_fails _ctx =
   let prefixes = [
@@ -132,7 +163,8 @@ let all_tests =
    "test_64_byte_int" >:: test_64_byte_int;
    "test_incomplete_fails" >:: test_incomplete_fails;
    "test_float" >:: test_float;
-   "test_bytes" >:: test_bytes]
+   "test_bytes" >:: test_bytes;
+   "test_strings" >:: test_strings]
 
 let () =
   run_test_tt_main all_tests
