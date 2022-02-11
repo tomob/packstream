@@ -1,14 +1,17 @@
 open OUnit2
 open Packstream
+open Core
 
 let run_test_cases cases =
   let internal = fun (s, v) ->
     let bs = Bitstring.bitstring_of_string s
     in
-      (* print_string (show_message (Result.get_ok (parse bs))); print_newline (); *)
+      (* match (parse bs) with
+      | Ok x -> print_string (show_message x); Out_channel.newline stdout
+      | Error err -> print_string ("ERROR: " ^ err); Out_channel.newline stdout; *)
       assert_equal (Ok v) (parse bs)
   in
-  List.iter internal cases
+  List.iter ~f:internal cases
 
 let test_null _ctx =
   let bs = Bitstring.bitstring_of_string "\xc0" in
@@ -49,22 +52,22 @@ let test_tiny_int _ctx =
     ("\xfe", -2L);
     ("\xff", -1L);
   ] in
-  List.iter test_tiny_int_negative negative;
-  List.iter test_tiny_int_positive (List.init 128 Fun.id)
+  List.iter ~f:test_tiny_int_negative negative;
+  List.iter ~f:test_tiny_int_positive (List.init 128 ~f:Fun.id)
 
 let test_8_byte_int _ctx =
   let internal = fun i ->
     let%bitstring bs = {| 0xC8 : 8; i : 8 : signed,int,bigendian |} in
     assert_equal (Ok (Int (Int64.of_int i))) (parse bs)
   in
-  List.iter internal (List.init 256 (fun i -> i - 128))
+  List.iter ~f:internal (List.init 256 ~f:(fun i -> i - 128))
 
 let test_16_byte_int _ctx =
   let internal = fun i ->
     let%bitstring bs = {| 0xC9 : 8; i : 16 : signed,int,bigendian |} in
     assert_equal (Ok (Int (Int64.of_int i))) (parse bs)
   in
-  List.iter internal (List.init 65536 (fun i -> i - 32768))
+  List.iter ~f:internal (List.init 65536 ~f:(fun i -> i - 32768))
 
 let test_32_byte_int _ctx =
   let internal = fun (i:int32) ->
@@ -74,7 +77,7 @@ let test_32_byte_int _ctx =
     -2147483648; -32769; 32768; 2147483647
   ]
   in
-  List.iter internal (List.map Int32.of_int examples)
+  List.iter ~f:internal (List.map ~f:Int32.of_int_exn examples)
 
 let test_64_byte_int _ctx =
   let cases = [
@@ -95,7 +98,7 @@ let test_float _ctx =
     1.23; 0.; -123.456
   ]
   in
-  List.iter internal examples
+  List.iter ~f:internal examples
 
 let test_bytes _ctx =
   let cases = [
@@ -142,7 +145,24 @@ let test_lists _ctx =
     ("\x93\x01\x02\x03", List [Int 1L; Int 2L; Int 3L]);
     ("\x93\x01\xC1\x40\x00\x00\x00\x00\x00\x00\x00\x85\x74\x68\x72\x65\x65", List [Int 1L; Float 2.0; String "three"]);
     ("\xD4\x28\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F\x20\x21\x22\x23\x24\x25\x26\x27\x28",
-     List (List.map (fun x -> Int x) (List.init 40 (fun x -> Int64.of_int (x + 1)))))
+     List (List.map ~f:(fun x -> Int x) (List.init 40 ~f:(fun x -> Int64.of_int (x + 1)))))
+  ] in
+  run_test_cases cases
+
+let test_dictionaries _ctx =
+  let cases = [
+    ("\xA0", Dict []);
+    ("\xA1\x83\x6F\x6E\x65\x84\x65\x69\x6E\x73", Dict ["one", String "eins"]);
+    ("\xD8\x1A\x81\x41\x01\x81\x42\x02\x81\x43\x03\x81\x44\x04" ^
+     "\x81\x45\x05\x81\x46\x06\x81\x47\x07\x81\x48\x08\x81\x49" ^
+     "\x09\x81\x4A\x0A\x81\x4B\x0B\x81\x4C\x0C\x81\x4D\x0D\x81" ^
+     "\x4E\x0E\x81\x4F\x0F\x81\x50\x10\x81\x51\x11\x81\x52\x12" ^
+     "\x81\x53\x13\x81\x54\x14\x81\x55\x15\x81\x56\x16\x81\x57" ^
+     "\x17\x81\x58\x18\x81\x59\x19\x81\x5A\x1A",
+     Dict ["A", Int 1L; "B", Int 2L; "C", Int 3L; "D", Int 4L; "E", Int 5L; "F", Int 6L; "G", Int 7L;
+           "H", Int 8L; "I", Int 9L; "J", Int 10L; "K", Int 11L; "L", Int 12L; "M", Int 13L; "N", Int 14L;
+           "O", Int 15L; "P", Int 16L; "Q", Int 17L; "R", Int 18L; "S", Int 19L; "T", Int 20L; "U", Int 21L;
+           "V", Int 22L; "W", Int 23L; "X", Int 24L; "Y", Int 25L; "Z", Int 26L])
   ] in
   run_test_cases cases
 
@@ -177,7 +197,7 @@ let test_incomplete_fails _ctx =
     "\xd6"; "\xd6\x01"; "\xd6\x00\x00\x00\x01"
   ] in
   List.iter
-    (fun prefix -> assert_equal (Error "Invalid message") (parse (Bitstring.bitstring_of_string prefix)))
+    ~f:(fun prefix -> assert_equal (Error "Invalid message") (parse (Bitstring.bitstring_of_string prefix)))
     prefixes
 
 let all_tests =
@@ -194,7 +214,8 @@ let all_tests =
    "test_float" >:: test_float;
    "test_bytes" >:: test_bytes;
    "test_strings" >:: test_strings;
-   "test_lists" >:: test_lists]
+   "test_lists" >:: test_lists;
+   "test_dictionaries" >:: test_dictionaries]
 
 let () =
   run_test_tt_main all_tests

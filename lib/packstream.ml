@@ -9,6 +9,7 @@ type message =
   | Bytes of string
   | String of string
   | List of message list
+  | Dict of (string * message) list
 [@@deriving show]
 
 let rec parse_one bitstring =
@@ -38,15 +39,20 @@ let rec parse_one bitstring =
   | {| 0xD2 : 8; length : 32 : unsigned ; str : (Int32.to_int_exn length)*8 : string ; rest : -1 : bitstring |}
     -> Ok (String str), rest
   (* Lists *)
-  | {| 0x9  : 4; length :  4 : unsigned ; data : -1 : bitstring  |} -> parse_list length data
-  | {| 0xD4 : 8; length :  8 : unsigned ; data : -1 : bitstring  |} -> parse_list length data
-  | {| 0xD5 : 8; length : 16 : unsigned ; data : -1 : bitstring  |} -> parse_list length data
-  | {| 0xD6 : 8; length : 32 : unsigned ; data : -1 : bitstring  |} -> parse_list (Int32.to_int_exn length) data
+  | {| 0x9  : 4; length :  4 : unsigned ; data : -1 : bitstring |} -> parse_list length data
+  | {| 0xD4 : 8; length :  8 : unsigned ; data : -1 : bitstring |} -> parse_list length data
+  | {| 0xD5 : 8; length : 16 : unsigned ; data : -1 : bitstring |} -> parse_list length data
+  | {| 0xD6 : 8; length : 32 : unsigned ; data : -1 : bitstring |} -> parse_list (Int32.to_int_exn length) data
+  (* Dictionaries *)
+  | {| 0xA  : 4; length :  4 : unsigned ; data : -1 : bitstring |} -> parse_dict length data
+  | {| 0xD8 : 8; length :  8 : unsigned ; data : -1 : bitstring |} -> parse_dict length data
+  | {| 0xD9 : 8; length : 16 : unsigned ; data : -1 : bitstring |} -> parse_dict length data
+  | {| 0xDA : 8; length : 32 : unsigned ; data : -1 : bitstring |} -> parse_dict (Int32.to_int_exn length) data
   (* Failure case *)
   | {| _ |} -> Error "Invalid message", bitstring
 and parse_list length data =
-  let internal = (fun (l, bitstring) _ ->
-    let r, rst = parse_one bitstring in ((r::l), rst))
+  let internal = fun (l, bitstring) _ ->
+    let r, rst = parse_one bitstring in r::l, rst
   in
   let fake_list = List.init length ~f:Fn.id in
   let result, rest = List.fold fake_list ~init:([], data) ~f:internal in
@@ -54,6 +60,22 @@ and parse_list length data =
     |> Result.all
     |> Result.map ~f:(fun x -> List x)
   in result, rest
+and parse_dict length data =
+  let internal = fun (d, bitstring) _ ->
+    match parse_one bitstring with
+    | Ok (String s), rst ->
+        let open Result in
+        let v, rst = parse_one rst in
+        (v >>= fun vv -> Ok (s,vv))::d, rst
+    | _ -> [Error "Key must be a string"], bitstring
+  in
+  let fake_list = List.init length ~f:Fn.id in
+  let result, rest = List.fold fake_list ~init:([], data) ~f:internal in
+  let result = List.rev result
+    |> Result.all
+    |> Result.map ~f:(fun x -> Dict x)
+  in
+    result, rest
 
 let parse bitsting =
   let result, _ = parse_one bitsting
