@@ -10,6 +10,8 @@ type message =
   | String of string
   | List of message list
   | Dict of (string * message) list
+  | Node of message * message * message
+  | Relationship of message * message * message * message * message
 [@@deriving show]
 
 let rec parse_one bitstring =
@@ -48,6 +50,8 @@ let rec parse_one bitstring =
   | {| 0xD8 : 8; length :  8 : unsigned; data : -1 : bitstring |} -> parse_dict length data
   | {| 0xD9 : 8; length : 16 : unsigned; data : -1 : bitstring |} -> parse_dict length data
   | {| 0xDA : 8; length : 32 : unsigned; data : -1 : bitstring |} -> parse_dict (Int32.to_int_exn length) data
+  (* Structs  *)
+  | {| 0xB : 4; length : 4 : unsigned; tag : 8 : unsigned; data : -1 : bitstring |} -> parse_structs length tag data
   (* Failure case *)
   | {| _ |} -> Error "Invalid message", bitstring
 
@@ -78,6 +82,30 @@ and parse_dict length data =
     |> Result.map ~f:(fun x -> Dict x)
   in
     result, rest
+
+and parse_structs _length tag data =
+  match tag with
+  | 0x4E -> parse_node data
+  | 0x52 -> parse_relationship data
+  | _ -> Error "Unknown struct", data
+
+and parse_node data =
+  let id, rest = parse_one data in
+  let labels, rest = parse_one rest in
+  let properties, rest = parse_one rest in
+  match (id, labels, properties) with
+  | (Ok i), (Ok l), (Ok p) -> Ok (Node (i, l, p)), rest
+  | _ -> Error "Could not parse Node", data
+
+and parse_relationship data =
+  let id, rest = parse_one data in
+  let start_node, rest = parse_one rest in
+  let end_node, rest = parse_one rest in
+  let type_, rest = parse_one rest in
+  let properties, rest = parse_one rest in
+  match (id, start_node, end_node, type_, properties) with
+  | (Ok i), (Ok s), (Ok e), (Ok t), (Ok p) -> Ok (Relationship (i, s, e, t, p)), rest
+  | _ -> Error "Could not parse Node", data
 
 let parse bitsting =
   let result, _ = parse_one bitsting

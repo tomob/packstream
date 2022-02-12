@@ -166,6 +166,14 @@ let test_dictionaries _ctx =
   ] in
   run_test_cases cases
 
+let test_structs _ctx =
+  let cases = [
+    ("\xB3\x4E\x01\x90\xA0", Node (Int 1L, List [], Dict []));
+    ("\xB5\x52\x0B\x02\x03\x85KNOWS\xA1\x84name\x87example",
+     Relationship (Int 11L, Int 2L, Int 3L, String "KNOWS", Dict ["name", String "example"]))
+  ] in
+  run_test_cases cases
+
 let test_incomplete_fails _ctx =
   let prefixes = [
     (* Numbers *)
@@ -215,7 +223,8 @@ let all_tests =
    "test_bytes" >:: test_bytes;
    "test_strings" >:: test_strings;
    "test_lists" >:: test_lists;
-   "test_dictionaries" >:: test_dictionaries]
+   "test_dictionaries" >:: test_dictionaries;
+   "test_structs" >:: test_structs]
 
 let () =
   run_test_tt_main all_tests
