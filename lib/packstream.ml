@@ -12,9 +12,23 @@ type message =
   | Dict of (string * message) list
   | Node of message * message * message
   | Relationship of message * message * message * message * message
+  | UnboundRelationship of message * message * message
+  | Path of message * message * message
+  | Date of message
+  | Time of message * message
+  | LocalTime of message
+  | DateTime of message * message * message
+  | DateTimeZoneId of message * message * message
+  | LocalDateTime of message * message
+  | Duration of message * message * message * message
+  | Point2D of message * message * message
+  | Point3D of message * message * message * message
 [@@deriving show]
 
-let rec parse_one bitstring =
+let cons lst elem =
+  List.cons elem lst
+
+let rec parse_one (bitstring:Bitstring.t) =
   match%bitstring bitstring with
   | {| 0xC0 : 8; rest : -1 : bitstring |} -> Ok Null, rest
   | {| 0xC2 : 8; rest : -1 : bitstring |} -> Ok False, rest
@@ -55,58 +69,72 @@ let rec parse_one bitstring =
   (* Failure case *)
   | {| _ |} -> Error "Invalid message", bitstring
 
-and parse_list length data =
+and parse_list length (data:Bitstring.t) =
+  let open Tuple2 in
   let internal = fun (l, bitstring) _ ->
-    let r, rst = parse_one bitstring in r::l, rst
+    map_fst (parse_one bitstring) ~f:(cons l)
   in
   let fake_list = List.init length ~f:Fn.id in
-  let result, rest = List.fold fake_list ~init:([], data) ~f:internal in
-  let result = List.rev result
-    |> Result.all
-    |> Result.map ~f:(fun x -> List x)
-  in result, rest
+  List.fold fake_list ~init:([], data) ~f:internal
+  |> map_fst ~f:List.rev
+  |> map_fst ~f:(Result.all)
+  |> map_fst ~f:(Result.map ~f:(fun x -> List x))
 
-and parse_dict length data =
+and parse_dict length (data:Bitstring.t) =
+  let open Tuple2 in
+  let open Result in
   let internal = fun (d, bitstring) _ ->
     match parse_one bitstring with
     | Ok (String s), rst ->
-        let open Result in
-        let v, rst = parse_one rst in
-        (v >>= fun vv -> Ok (s,vv))::d, rst
+        map_fst (parse_one rst) ~f:(fun v -> cons d (v >>= fun vv -> Ok (s,vv)))
     | _ -> [Error "Key must be a string"], bitstring
   in
   let fake_list = List.init length ~f:Fn.id in
-  let result, rest = List.fold fake_list ~init:([], data) ~f:internal in
-  let result = List.rev result
-    |> Result.all
-    |> Result.map ~f:(fun x -> Dict x)
-  in
-    result, rest
+  List.fold fake_list ~init:([], data) ~f:internal
+  |> map_fst ~f:List.rev
+  |> map_fst ~f:Result.all
+  |> map_fst ~f:(Result.map ~f:(fun x -> Dict x))
 
-and parse_structs _length tag data =
+and parse_structs length tag (data:Bitstring.t) =
   match tag with
-  | 0x4E -> parse_node data
-  | 0x52 -> parse_relationship data
+  | 0x4E when length = 3 -> parse_fields length data
+    (function [i; l; p] -> Ok (Node (i, l, p)) | _ -> Error "Cound not parse Node")
+  | 0x52 when length = 5 -> parse_fields length data
+    (function [i; s; e; t; p] -> Ok (Relationship (i, s, e, t, p)) | _ -> Error "Cound not parse Relationship")
+  | 0x72 when length = 3 -> parse_fields length data
+    (function [i; t; p] ->  Ok (UnboundRelationship (i, t, p)) | _ -> Error "Cound not parse UnboundRelationship")
+  | 0x50 when length = 3 -> parse_fields length data
+    (function [n; r; p] -> Ok (Path (n, r, p)) | _ -> Error "Cound not parse Path")
+  | 0x44 when length = 1 -> parse_fields length data
+    (function [d] -> Ok (Date d) | _ -> Error "Cound not parse Date")
+  | 0x54 when length = 2 -> parse_fields length data
+    (function [n; t] -> Ok (Time (n, t)) | _ -> Error "Cound not parse Time")
+  | 0x74 when length = 1 -> parse_fields length data
+    (function [t] -> Ok (LocalTime t) | _ -> Error "Cound not parse LocalTime")
+  | 0x46 when length = 3 -> parse_fields length data
+    (function [s; n; t] -> Ok (DateTime (s, n, t)) | _ -> Error "Cound not parse DateTime")
+  | 0x66 when length = 3 -> parse_fields length data
+    (function [s; n; t] -> Ok (DateTimeZoneId (s, n, t)) | _ -> Error "Cound not parse DateTimeZoneId")
+  | 0x64 when length = 2 -> parse_fields length data
+    (function [s; n] -> Ok (LocalDateTime (s, n)) | _ -> Error "Cound not parse LocalDateTime")
+  | 0x45 when length = 4 -> parse_fields length data
+    (function [m; d; s; n] -> Ok (Duration (m, d, s, n)) | _ -> Error "Cound not parse Duration")
+  | 0x58 when length = 3 -> parse_fields length data
+    (function [s; x; y] -> Ok (Point2D (s, x, y)) | _ -> Error "Cound not parse Point2D")
+  | 0x59 when length = 4 -> parse_fields length data
+    (function [s; x; y; z] -> Ok (Point3D (s, x, y, z)) | _ -> Error "Cound not parse Point3D")
   | _ -> Error "Unknown struct", data
 
-and parse_node data =
-  let id, rest = parse_one data in
-  let labels, rest = parse_one rest in
-  let properties, rest = parse_one rest in
-  match (id, labels, properties) with
-  | (Ok i), (Ok l), (Ok p) -> Ok (Node (i, l, p)), rest
-  | _ -> Error "Could not parse Node", data
+and parse_fields length (data:Bitstring.t) fn =
+  let open Tuple2 in
+  let internal = fun (l, bitstring) _ ->
+    map_fst (parse_one bitstring) ~f:(cons l)
+  in
+  let fake_list = List.init length ~f:Fn.id in
+  List.fold fake_list ~init:([], data) ~f:internal
+  |> map_fst ~f:List.rev
+  |> map_fst ~f:Result.all
+  |> map_fst ~f:(Result.bind ~f:fn)
 
-and parse_relationship data =
-  let id, rest = parse_one data in
-  let start_node, rest = parse_one rest in
-  let end_node, rest = parse_one rest in
-  let type_, rest = parse_one rest in
-  let properties, rest = parse_one rest in
-  match (id, start_node, end_node, type_, properties) with
-  | (Ok i), (Ok s), (Ok e), (Ok t), (Ok p) -> Ok (Relationship (i, s, e, t, p)), rest
-  | _ -> Error "Could not parse Node", data
-
-let parse bitsting =
-  let result, _ = parse_one bitsting
-  in result
+let parse (bitstring:Bitstring.t) =
+  Tuple2.get1 @@ parse_one bitstring
