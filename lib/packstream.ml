@@ -1,34 +1,137 @@
 open Core
 
-type message =
-  | Null
-  | True
-  | False
-  | Int of int64
-  | Float of float
-  | Bytes of string
-  | String of string
-  | List of message list
-  | Dict of (string * message) list
-  | Node of message * message * message
-  | Relationship of message * message * message * message * message
-  | UnboundRelationship of message * message * message
-  | Path of message * message * message
-  | Date of message
-  | Time of message * message
-  | LocalTime of message
-  | DateTime of message * message * message
-  | DateTimeZoneId of message * message * message
-  | LocalDateTime of message * message
-  | Duration of message * message * message * message
-  | Point2D of message * message * message
-  | Point3D of message * message * message * message
+type 'a alist = (string * 'a) list
 [@@deriving show]
+
+module rec Message : sig
+  type t =
+    | Null
+    | True
+    | False
+    | Int of int64
+    | Float of float
+    | Bytes of string
+    | String of string
+    | List of t list
+    | Dict of t alist
+    | Node of Node.t
+    | Relationship of Relationship.t
+    | UnboundRelationship of UnboundRelationship.t
+    | Path of Path.t
+    | Date of {days: int64}
+    | Time of {nanoseconds: int64; tz_offset_seconds: int64}
+    | LocalTime of {nanoseconds: int64}
+    | DateTime of {seconds: int64; nanoseconds: int64; tz_offset_seconds: int64}
+    | DateTimeZoneId of {seconds: int64; nanoseconds: int64; tz_id: string}
+    | LocalDateTime of {seconds: int64; nanoseconds: int64}
+    | Duration of {months: int64; days: int64; seconds: int64; nanoseconds: int64}
+    | Point2D of {srid: int64; x: float; y: float}
+    | Point3D of {srid: int64; x: float; y: float; z: float}
+  [@@deriving show]
+
+  val get_string : t -> (string, string) result
+  val get_node : t -> (Node.t, string) result
+  val get_relationship : t -> (Relationship.t, string) result
+  val get_int : t -> (int64, string) result
+  val get_unboundrelationship : t -> (UnboundRelationship.t, string) result
+
+end = struct
+  type t =
+    | Null
+    | True
+    | False
+    | Int of int64
+    | Float of float
+    | Bytes of string
+    | String of string
+    | List of t list
+    | Dict of t alist
+    | Node of Node.t
+    | Relationship of Relationship.t
+    | UnboundRelationship of UnboundRelationship.t
+    | Path of Path.t
+    | Date of {days: int64}
+    | Time of {nanoseconds: int64; tz_offset_seconds: int64}
+    | LocalTime of {nanoseconds: int64}
+    | DateTime of {seconds: int64; nanoseconds: int64; tz_offset_seconds: int64}
+    | DateTimeZoneId of {seconds: int64; nanoseconds: int64; tz_id: string}
+    | LocalDateTime of {seconds: int64; nanoseconds: int64}
+    | Duration of {months: int64; days: int64; seconds: int64; nanoseconds: int64}
+    | Point2D of {srid: int64; x: float; y: float}
+    | Point3D of {srid: int64; x: float; y: float; z:float}
+  [@@deriving show]
+
+  let get_string = function
+    | String s -> Ok s
+    | _ -> Error "Could not get string"
+
+  let get_node = function
+    | Node n -> Ok n
+    | _ -> Error "Could not get string"
+
+  let get_relationship = function
+    | Relationship r -> Ok r
+    | _ -> Error "Could not get string"
+
+  let get_int = function
+    | Int i -> Ok i
+    | _ -> Error "Could not get string"
+
+  let get_unboundrelationship = function
+    | UnboundRelationship r -> Ok r
+    | _ -> Error "Could not get string"
+
+end
+
+and Node : sig
+  type t = {id: int64; labels: string list; properties: Message.t alist}
+  [@@deriving show]
+end = struct
+  type t = {id: int64; labels: string list; properties: Message.t alist}
+  [@@deriving show]
+end
+
+and Relationship : sig
+  type t = {id: int64; start_node_id: int64; end_node_id: int64; typ: string; properties: Message.t alist}
+  [@@deriving show]
+end = struct
+  type t = {id: int64; start_node_id: int64; end_node_id: int64; typ: string; properties: Message.t alist}
+  [@@deriving show]
+end
+
+and UnboundRelationship : sig
+  type t = {id: int64; typ: string; properties: Message.t alist}
+  [@@deriving show]
+end = struct
+  type t = {id: int64; typ: string; properties: Message.t alist}
+  [@@deriving show]
+end
+
+and Path : sig
+  type t = {nodes: Node.t list; rels: UnboundRelationship.t list; ids: int64 list}
+  [@@deriving show]
+end= struct
+  type t = {nodes: Node.t list; rels: UnboundRelationship.t list; ids: int64 list}
+  [@@deriving show]
+end
+
+(* Unwraps strings on the list.
+   [String x] -> [x] *)
+let unwrap_string_list l fn =
+  List.map ~f:Message.get_string l
+  |> Result.all
+  |> Result.map ~f:fn
+
+let unwrap_list l getter fn =
+    List.map ~f:getter l
+    |> Result.all
+    |> Result.map ~f:fn
 
 let cons lst elem =
   List.cons elem lst
 
 let rec parse_one (bitstring:Bitstring.t) =
+  let open Message in
   match%bitstring bitstring with
   | {| 0xC0 : 8; rest : -1 : bitstring |} -> Ok Null, rest
   | {| 0xC2 : 8; rest : -1 : bitstring |} -> Ok False, rest
@@ -78,7 +181,7 @@ and parse_list length (data:Bitstring.t) =
   List.fold fake_list ~init:([], data) ~f:internal
   |> map_fst ~f:List.rev
   |> map_fst ~f:(Result.all)
-  |> map_fst ~f:(Result.map ~f:(fun x -> List x))
+  |> map_fst ~f:(Result.map ~f:(fun x -> Message.List x))
 
 and parse_dict length (data:Bitstring.t) =
   let open Tuple2 in
@@ -93,36 +196,59 @@ and parse_dict length (data:Bitstring.t) =
   List.fold fake_list ~init:([], data) ~f:internal
   |> map_fst ~f:List.rev
   |> map_fst ~f:Result.all
-  |> map_fst ~f:(Result.map ~f:(fun x -> Dict x))
+  |> map_fst ~f:(Result.map ~f:(fun x -> Message.Dict x))
 
 and parse_structs length tag (data:Bitstring.t) =
+  let open Message in
   match tag with
   | 0x4E when length = 3 -> parse_fields length data
-    (function [i; l; p] -> Ok (Node (i, l, p)) | _ -> Error "Cound not parse Node")
+    (function [Int i; List l; Dict p] ->
+       unwrap_list l get_string @@ fun lst -> Node {id = i; labels = lst; properties = p}
+     | _ -> Error "Cound not parse Node")
   | 0x52 when length = 5 -> parse_fields length data
-    (function [i; s; e; t; p] -> Ok (Relationship (i, s, e, t, p)) | _ -> Error "Cound not parse Relationship")
+    (function [Int i; Int s; Int e; String t; Dict p] ->
+      Ok (Relationship {id = i; start_node_id = s; end_node_id = e; typ = t; properties = p})
+     | _ -> Error "Cound not parse Relationship")
   | 0x72 when length = 3 -> parse_fields length data
-    (function [i; t; p] ->  Ok (UnboundRelationship (i, t, p)) | _ -> Error "Cound not parse UnboundRelationship")
+    (function [Int i; String t; Dict p] ->
+      Ok (UnboundRelationship {id = i; typ = t; properties = p})
+     | _ -> Error "Cound not parse UnboundRelationship")
   | 0x50 when length = 3 -> parse_fields length data
-    (function [n; r; p] -> Ok (Path (n, r, p)) | _ -> Error "Cound not parse Path")
+    (function [List n; List r; List p] ->
+       unwrap_list n get_node (
+         fun nodes -> unwrap_list r get_unboundrelationship (
+           fun relationships -> unwrap_list p get_int (
+             fun ids -> Path {nodes = nodes; rels = relationships; ids = ids}
+           )
+         ) |> Result.join
+       ) |> Result.join
+     | _ -> Error "Cound not parse Path")
   | 0x44 when length = 1 -> parse_fields length data
-    (function [d] -> Ok (Date d) | _ -> Error "Cound not parse Date")
+    (function [Int d] -> Ok (Date {days = d})
+     | _ -> Error "Cound not parse Date")
   | 0x54 when length = 2 -> parse_fields length data
-    (function [n; t] -> Ok (Time (n, t)) | _ -> Error "Cound not parse Time")
+    (function [Int n; Int t] -> Ok (Time {nanoseconds = n; tz_offset_seconds = t})
+     | _ -> Error "Cound not parse Time")
   | 0x74 when length = 1 -> parse_fields length data
-    (function [t] -> Ok (LocalTime t) | _ -> Error "Cound not parse LocalTime")
+    (function [Int t] -> Ok (LocalTime {nanoseconds = t}) | _ -> Error "Cound not parse LocalTime")
   | 0x46 when length = 3 -> parse_fields length data
-    (function [s; n; t] -> Ok (DateTime (s, n, t)) | _ -> Error "Cound not parse DateTime")
+    (function [Int s; Int n; Int t] -> Ok (DateTime {seconds = s; nanoseconds = n; tz_offset_seconds = t})
+     | _ -> Error "Cound not parse DateTime")
   | 0x66 when length = 3 -> parse_fields length data
-    (function [s; n; t] -> Ok (DateTimeZoneId (s, n, t)) | _ -> Error "Cound not parse DateTimeZoneId")
+    (function [Int s; Int n; String t] -> Ok (DateTimeZoneId {seconds = s; nanoseconds = n; tz_id = t})
+     | _ -> Error "Cound not parse DateTimeZoneId")
   | 0x64 when length = 2 -> parse_fields length data
-    (function [s; n] -> Ok (LocalDateTime (s, n)) | _ -> Error "Cound not parse LocalDateTime")
+    (function [Int s; Int n] -> Ok (LocalDateTime {seconds = s; nanoseconds = n})
+     | _ -> Error "Cound not parse LocalDateTime")
   | 0x45 when length = 4 -> parse_fields length data
-    (function [m; d; s; n] -> Ok (Duration (m, d, s, n)) | _ -> Error "Cound not parse Duration")
+    (function [Int m; Int d; Int s; Int n] -> Ok (Duration {months = m; days = d; seconds = s; nanoseconds =n})
+     | _ -> Error "Cound not parse Duration")
   | 0x58 when length = 3 -> parse_fields length data
-    (function [s; x; y] -> Ok (Point2D (s, x, y)) | _ -> Error "Cound not parse Point2D")
+    (function [Int s; Float x; Float y] -> Ok (Point2D {srid = s; x = x; y = y})
+     | _ -> Error "Cound not parse Point2D")
   | 0x59 when length = 4 -> parse_fields length data
-    (function [s; x; y; z] -> Ok (Point3D (s, x, y, z)) | _ -> Error "Cound not parse Point3D")
+    (function [Int s; Float x; Float y; Float z] -> Ok (Point3D {srid = s; x = x; y = y; z = z})
+     | _ -> Error "Cound not parse Point3D")
   | _ -> Error "Unknown struct", data
 
 and parse_fields length (data:Bitstring.t) fn =

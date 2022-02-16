@@ -1,6 +1,7 @@
 open OUnit2
 open Packstream
 open Core
+open Packstream.Message
 
 let run_test_cases cases =
   let internal = fun (s, v) ->
@@ -168,27 +169,27 @@ let test_dictionaries _ctx =
 
 let test_structs _ctx =
   let cases = [
-    ("\xB3\x4E\x01\x90\xA0", Node (Int 1L, List [], Dict []));
+    ("\xB3\x4E\x01\x90\xA0", Node {id = 1L; labels = []; properties = []});
     ("\xB5\x52\x0B\x02\x03\x85KNOWS\xA1\x84name\x87example",
-     Relationship (Int 11L, Int 2L, Int 3L, String "KNOWS", Dict ["name", String "example"]));
+     Relationship {id = 11L; start_node_id = 2L; end_node_id = 3L; typ = "KNOWS"; properties = ["name", String "example"]});
     ("\xB3\x72\x0B\x85KNOWS\xA1\x84name\x87example",
-     UnboundRelationship (Int 11L, String "KNOWS", Dict ["name", String "example"]));
+     UnboundRelationship {id = 11L; typ = "KNOWS"; properties = ["name", String "example"]});
     ("\xB3\x50\x91\xB3\x4E\x01\x90\xA0\x91\xB3\x72\x0B\x85KNOWS\xA1\x84name\x87example\x91\x01",
-     Path (List [Node (Int 1L, List [], Dict [])],
-               List [UnboundRelationship (Int 11L, String "KNOWS", Dict ["name", String "example"])],
-               List [Int 1L]));
-    ("\xB1\x44\x02", Date (Int 2L));
-    ("\xB2\x54\x02\x03", Time (Int 2L, Int 3L));
-    ("\xB1\x74\x05", LocalTime (Int 5L));
-    ("\xB3\x46\x02\x03\x04", DateTime (Int 2L, Int 3L, Int 4L));
-    ("\xB3\x66\x02\x03\x8CEurope/Paris", DateTimeZoneId (Int 2L, Int 3L, String "Europe/Paris"));
-    ("\xB2\x64\x02\x03", LocalDateTime (Int 2L, Int 3L));
-    ("\xB4\x45\x02\x03\x04\x05", Duration (Int 2L, Int 3L, Int 4L, Int 5L));
+     Path {nodes = [{id = 1L; labels = []; properties = []}];
+           rels = [{id = 11L; typ = "KNOWS"; properties = ["name", String "example"]}];
+           ids = [1L]});
+    ("\xB1\x44\x02", Date {days = 2L});
+    ("\xB2\x54\x02\x03", Time {nanoseconds = 2L; tz_offset_seconds = 3L});
+    ("\xB1\x74\x05", LocalTime {nanoseconds = 5L});
+    ("\xB3\x46\x02\x03\x04", DateTime {seconds = 2L; nanoseconds = 3L; tz_offset_seconds = 4L});
+    ("\xB3\x66\x02\x03\x8CEurope/Paris", DateTimeZoneId {seconds = 2L; nanoseconds = 3L; tz_id = "Europe/Paris"});
+    ("\xB2\x64\x02\x03", LocalDateTime {seconds = 2L; nanoseconds = 3L});
+    ("\xB4\x45\x02\x03\x04\x05", Duration {months = 2L; days = 3L; seconds = 4L; nanoseconds = 5L});
     ("\xB3\x58\x01\xC1\x3F\xF3\xAE\x14\x7A\xE1\x47\xAE\xC1\x3F\xF3\xAE\x14\x7A\xE1\x47\xAE",
-     Point2D (Int 1L, Float 1.23, Float 1.23));
+     Point2D {srid = 1L; x = 1.23; y = 1.23});
      ("\xB4\x59\x01\xC1\x3F\xF3\xAE\x14\x7A\xE1\x47\xAE\xC1\x3F\xF3\xAE\x14\x7A\xE1\x47\xAE" ^
       "\xC1\x3F\xF3\xAE\x14\x7A\xE1\x47\xAE",
-     Point3D (Int 1L, Float 1.23, Float 1.23, Float 1.23))
+     Point3D {srid = 1L; x = 1.23; y = 1.23; z = 1.23})
   ] in
   run_test_cases cases
 
