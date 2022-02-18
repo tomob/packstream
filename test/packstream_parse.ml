@@ -73,8 +73,8 @@ let test_32_byte_int _ctx =
   let internal (i : int32) =
     let%bitstring bs = {| 0xCA : 8; i : 32 : int,bigendian |} in
     assert_equal (Ok (Int (Int64.of_int32 i))) (parse bs)
-  and examples = [-2147483648; -32769; 32768; 2147483647] in
-  List.iter ~f:internal (List.map ~f:Int32.of_int_exn examples)
+  and examples = [-2147483648l; -32769l; 32768l; 2147483647l] in
+  List.iter ~f:internal examples
 
 let test_64_byte_int _ctx =
   let cases =

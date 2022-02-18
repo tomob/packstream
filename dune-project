@@ -14,9 +14,9 @@
  (description "Packstream parses and serializes Packstream binary format.")
  (depends
    dune
-   (ocaml (>= 4.04.1))
+   (ocaml (>= 4.08.0))
    (ounit2 :with-test)
    (core (>= 0.14.0))
    (bitstring (>= 4.1.0))
    (ppx_bitstring (>= 4.1.0))
-   (ppx_deriving (>= 5.0.0))))
+   (ppx_deriving (>= 5.2.1))))
