@@ -1,0 +1,17 @@
+profile = default
+version = 0.18.0
+break-cases=all
+break-infix=fit-or-vertical
+dock-collection-brackets=false
+field-space=tight-decl
+let-and=sparse
+margin=120
+module-item-spacing=compact
+parens-tuple=multi-line-only
+sequence-style=terminator
+sequence-blank-line=compact
+single-case=sparse
+space-around-arrays=false
+space-around-lists=false
+space-around-records=false
+space-around-variants=false

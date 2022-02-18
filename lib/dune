@@ -2,5 +2,5 @@
  (public_name packstream)
  (name packstream)
  (libraries bitstring core)
- (preprocess (pps ppx_bitstring ppx_deriving.show))
- )
+ (preprocess
+  (pps ppx_bitstring ppx_deriving.show)))

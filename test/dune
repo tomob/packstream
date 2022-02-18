@@ -1,7 +1,5 @@
 (tests
-  (names packstream_parse
-         packstream_serialize
-         )
-  (libraries packstream
-            ounit2)
-  (preprocess (pps ppx_bitstring)))
+ (names packstream_parse packstream_serialize)
+ (libraries packstream ounit2)
+ (preprocess
+  (pps ppx_bitstring)))
