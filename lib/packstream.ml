@@ -264,3 +264,113 @@ and parse_fields length (data:Bitstring.t) fn =
 
 let parse (bitstring:Bitstring.t) =
   Tuple2.get1 @@ parse_one bitstring
+
+let serialize_int (i:int64) =
+  let open Int64 in
+  match i with
+  | _ when i < -2147483648L || i > 2147483647L -> let%bitstring b = {| 0xCB : 8; i : 64 |} in b
+  | _ when i < -32768L || i > 32767L -> let%bitstring b = {| 0xCA : 8; (Int64.to_int32_exn i) : 32 |} in b
+  | _ when i < -128L || i > 127L -> let%bitstring b = {| 0xC9 : 8; (Int64.to_int_exn i) : 16 : signed |} in b
+  | _ when i < -16L -> let%bitstring b = {| 0xC8 : 8; (Int64.to_int_exn i) : 8 : signed |} in b
+  | _ -> let%bitstring b = {| (Int64.to_int_exn i) : 8 : signed |} in b
+
+let serialize_float f =
+  let converted = Int64.bits_of_float f in let%bitstring b = {| 0xC1 : 8; converted : 64 |} in b
+
+let serialize_byte_array ba =
+  match String.length ba with
+  | l when l < 256 -> let%bitstring b = {| 0xCC : 8; l : 8 : unsigned; ba : 8*l : string |} in b
+  | l when l < 65536 -> let%bitstring b = {| 0xCD : 8; l : 16 : unsigned; ba : 8*l : string |} in b
+  | l -> let%bitstring b = {| 0xCE : 8; (Int32.of_int_exn l) : 32 : unsigned; ba : 8*l : string |} in b
+
+let serialize_string str =
+  match String.length str with
+  | l when l > 65535 -> let%bitstring b = {| 0xD2 : 8; (Int32.of_int_exn l) : 32 : unsigned; str : l*8 : string|} in b
+  | l when l > 255 -> let%bitstring b = {| 0xD1 : 8; l : 16 : unsigned; str : l*8 : string|} in b
+  | l when l > 15 -> let%bitstring b = {| 0xD0 : 8; l : 8 : unsigned; str : l*8 : string|} in b
+  | l -> let%bitstring b = {| 0x8 : 4; l : 4 : unsigned; str : l*8 : string |} in b
+
+let rec serialize message =
+  let open Message in
+  match message with
+  | Null -> let%bitstring b = {| 0xC0 : 8 |} in b
+  | False -> let%bitstring b = {| 0xC2 : 8 |} in b
+  | True -> let%bitstring b = {| 0xC3 : 8 |} in b
+  | Int i -> serialize_int i
+  | Float f -> serialize_float f
+  | Bytes ba -> serialize_byte_array ba
+  | String str -> serialize_string str
+  | List lst -> serialize_list lst
+  | Dict dct -> serialize_dict dct
+  | Node {id; labels; properties} -> let%bitstring header = {| 0xb34e : 16 |} in
+      Bitstring.concat [
+        header;
+        serialize_int id;
+        serialize_list (List.map ~f:(fun s -> String s) labels);
+        serialize_dict properties]
+  | Relationship {id; start_node_id; end_node_id; typ; properties} -> let%bitstring header = {| 0xb552 : 16 |} in
+      Bitstring.concat [
+        header;
+        serialize_int id;
+        serialize_int start_node_id;
+        serialize_int end_node_id;
+        serialize_string typ;
+        serialize_dict properties]
+  | UnboundRelationship {id; typ; properties} -> let%bitstring header = {| 0xb372 : 16 |} in
+      Bitstring.concat [
+        header;
+        serialize_int id;
+        serialize_string typ;
+        serialize_dict properties]
+  | Path {nodes; rels; ids} -> let%bitstring header = {| 0xb350 : 16 |} in
+      Bitstring.concat [
+        header;
+        serialize_list @@ List.map ~f:(fun n -> Node n) nodes;
+        serialize_list @@ List.map ~f:(fun r -> UnboundRelationship r) rels;
+        serialize_list @@ List.map ~f:(fun id -> Int id) ids; ]
+  | Date {days} -> let%bitstring header = {| 0xb144 : 16 |} in
+      Bitstring.concat [header; serialize_int days]
+  | Time {nanoseconds; tz_offset_seconds} -> let%bitstring header = {| 0xb254 : 16 |} in
+      Bitstring.concat [header; serialize_int nanoseconds; serialize_int tz_offset_seconds]
+  | LocalTime {nanoseconds} -> let%bitstring header = {| 0xb174 : 16 |} in
+      Bitstring.concat [header; serialize_int nanoseconds]
+  | DateTime {seconds; nanoseconds; tz_offset_seconds} -> let%bitstring header = {| 0xb346 : 16 |} in
+      Bitstring.concat [
+        header;
+        serialize_int seconds;
+        serialize_int nanoseconds;
+        serialize_int tz_offset_seconds]
+  | DateTimeZoneId {seconds; nanoseconds; tz_id} -> let%bitstring header = {| 0xb366 : 16 |} in
+      Bitstring.concat [header; serialize_int seconds; serialize_int nanoseconds; serialize_string tz_id]
+  | LocalDateTime {seconds; nanoseconds} -> let%bitstring header = {| 0xb264 : 16 |} in
+      Bitstring.concat [header; serialize_int seconds; serialize_int nanoseconds]
+  | Duration {months; days; seconds; nanoseconds} -> let%bitstring header = {| 0xb445 : 16 |} in
+      Bitstring.concat [
+        header;
+        serialize_int months;
+        serialize_int days;
+        serialize_int seconds;
+        serialize_int nanoseconds]
+  | Point2D {srid; x; y} -> let%bitstring header = {| 0xb358 : 16 |} in
+      Bitstring.concat [header; serialize_int srid; serialize_float x; serialize_float y]
+  | Point3D {srid; x; y; z} -> let%bitstring header = {| 0xb459 : 16 |} in
+      Bitstring.concat [header; serialize_int srid; serialize_float x; serialize_float y; serialize_float z]
+
+and serialize_list lst =
+  let elems = List.map ~f:serialize lst in
+    match List.length elems with
+    | l when l > 65535 -> let%bitstring header = {| 0xD6 : 8; (Int32.of_int_exn l) : 32|} in Bitstring.concat (header::elems)
+    | l when l > 255 -> let%bitstring header = {| 0xD5 : 8; l : 16 : unsigned|} in Bitstring.concat (header::elems)
+    | l when l > 15 -> let%bitstring header = {| 0xD4 : 8; l : 8 : unsigned|} in Bitstring.concat (header::elems)
+    | l -> let%bitstring header = {| 0x9 : 4; l : 4|} in Bitstring.concat (header::elems)
+
+and serialize_dict dct =
+  let elems = List.map ~f:serialize_elem dct |> List.join in
+    match List.length dct with
+    | l when l > 65535 -> let%bitstring header = {| 0xDA : 8; (Int32.of_int_exn l) : 32|} in Bitstring.concat (header::elems)
+    | l when l > 255 -> let%bitstring header = {| 0xD9 : 8; l : 16 : unsigned|} in Bitstring.concat (header::elems)
+    | l when l > 15 -> let%bitstring header = {| 0xD8 : 8; l : 8 : unsigned|} in Bitstring.concat (header::elems)
+    | l -> let%bitstring header = {| 0xA : 4; l : 4|} in Bitstring.concat (header::elems)
+
+and serialize_elem (key, value) =
+  [serialize_string key; serialize value]
