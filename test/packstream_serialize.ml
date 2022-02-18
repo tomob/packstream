@@ -84,10 +84,10 @@ let test_float _ctx =
 
 let test_bytes _ctx =
   let cases = [
-    ("\xCC\x00", Bytes "");
-    ("\xCC\x03\x01\x02\x03", Bytes "\x01\x02\x03");
-    ("\xCD\x01\x00"^(String.make 256 '\x00'), Bytes (String.make 256 '\x00'));
-    ("\xCE\x00\x01\x00\x00"^(String.make 65536 '\x00'), Bytes (String.make 65536 '\x00'));
+    ("\xCC\x00", Bytes (Bytes.of_string ""));
+    ("\xCC\x03\x01\x02\x03", Bytes (Bytes.of_string "\x01\x02\x03"));
+    ("\xCD\x01\x00"^(String.make 256 '\x00'), Bytes (Bytes.make 256 '\x00'));
+    ("\xCE\x00\x01\x00\x00"^(String.make 65536 '\x00'), Bytes (Bytes.make 65536 '\x00'));
   ] in
   run_test_cases cases
 

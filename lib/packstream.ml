@@ -10,7 +10,7 @@ module rec Message : sig
     | False
     | Int of int64
     | Float of float
-    | Bytes of string
+    | Bytes of bytes
     | String of string
     | List of t list
     | Dict of t alist
@@ -42,7 +42,7 @@ end = struct
     | False
     | Int of int64
     | Float of float
-    | Bytes of string
+    | Bytes of bytes
     | String of string
     | List of t list
     | Dict of t alist
@@ -147,16 +147,18 @@ let rec parse_one (bitstring:Bitstring.t) =
   | {| flag : 1; i : 7; rest : -1 : bitstring |} when not flag -> Ok (Int (Int64.of_int i)), rest
   | {| 0x0F : 4; i : 4; rest : -1 : bitstring |}               -> Ok (Int (Int64.of_int (i-16))), rest
   (* Byte array *)
-  | {| 0xCC : 8; length :  8; bytes : length*8 : string; rest : -1 : bitstring |} -> Ok (Bytes bytes), rest
-  | {| 0xCD : 8; length : 16; bytes : length*8 : string; rest : -1 : bitstring |} -> Ok (Bytes bytes), rest
-  | {| 0xCE : 8; length : 32; bytes : (Int32.to_int_exn length)*8 : string; rest : -1 : bitstring |}
-    -> Ok (Bytes bytes), rest
+  | {| 0xCC : 8; length :  8; bytes : length*8 : string; rest : -1 : bitstring |} ->
+    Ok (Bytes (Bytes.of_string bytes)), rest
+  | {| 0xCD : 8; length : 16; bytes : length*8 : string; rest : -1 : bitstring |} ->
+    Ok (Bytes (Bytes.of_string bytes)), rest
+  | {| 0xCE : 8; length : 32; bytes : (Int32.to_int_exn length)*8 : string; rest : -1 : bitstring |} ->
+    Ok (Bytes (Bytes.of_string bytes)), rest
   (* Strings *)
   | {| 0x8  : 4; length :  4 : unsigned; str : length*8 : string; rest : -1 : bitstring |} -> Ok (String str), rest
   | {| 0xD0 : 8; length :  8 : unsigned; str : length*8 : string; rest : -1 : bitstring |} -> Ok (String str), rest
   | {| 0xD1 : 8; length : 16 : unsigned; str : length*8 : string; rest : -1 : bitstring |} -> Ok (String str), rest
-  | {| 0xD2 : 8; length : 32 : unsigned; str : (Int32.to_int_exn length)*8 : string; rest : -1 : bitstring |}
-    -> Ok (String str), rest
+  | {| 0xD2 : 8; length : 32 : unsigned; str : (Int32.to_int_exn length)*8 : string; rest : -1 : bitstring |} ->
+    Ok (String str), rest
   (* Lists *)
   | {| 0x9  : 4; length :  4 : unsigned; data : -1 : bitstring |} -> parse_list length data
   | {| 0xD4 : 8; length :  8 : unsigned; data : -1 : bitstring |} -> parse_list length data
@@ -298,7 +300,7 @@ let rec serialize message =
   | True -> let%bitstring b = {| 0xC3 : 8 |} in b
   | Int i -> serialize_int i
   | Float f -> serialize_float f
-  | Bytes ba -> serialize_byte_array ba
+  | Bytes ba -> serialize_byte_array (Bytes.to_string ba)
   | String str -> serialize_string str
   | List lst -> serialize_list lst
   | Dict dct -> serialize_dict dct
