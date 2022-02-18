@@ -8,7 +8,7 @@ let run_test_cases cases =
     let bs = Bitstring.bitstring_of_string s
     in
       (* match (parse bs) with
-      | Ok x -> print_string (show_message x); Out_channel.newline stdout
+      | Ok x -> print_string (Message.show x); Out_channel.newline stdout
       | Error err -> print_string ("ERROR: " ^ err); Out_channel.newline stdout; *)
       assert_equal (Ok v) (parse bs)
   in
@@ -169,6 +169,49 @@ let test_dictionaries _ctx =
 
 let test_structs _ctx =
   let cases = [
+    ("\xB0\x02", Struct {length = 0; tag = 2; fields = []});
+    ("\xB1\x01\x00", Struct {length = 1; tag = 1; fields = [Int 0L]});
+    ("\xB2\x03\x00\x80", Struct {length = 2; tag = 3; fields = [Int 0L; String ""]});
+    ("\xB3\x03\x00\x80\x90", Struct {length = 3; tag = 3; fields = [Int 0L; String ""; List []]});
+    ("\xB4\x02\x00\x80\x90\x00",
+     Struct {length = 4;  tag = 2; fields = [Int 0L; String ""; List []; Int 0L]});
+    ("\xB5\x02\x00\x80\x90\x00\x80",
+     Struct {length = 5;  tag = 2; fields = [Int 0L; String ""; List []; Int 0L; String ""]});
+    ("\xB6\x02\x00\x80\x90\x00\x80\x90",
+     Struct {length = 6;  tag = 2; fields = [Int 0L; String ""; List []; Int 0L; String ""; List []]});
+    ("\xB7\x02\x00\x80\x90\x00\x80\x90\x00",
+     Struct {length = 7;  tag = 2; fields = [Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L]});
+    ("\xB8\x02\x00\x80\x90\x00\x80\x90\x00\x80",
+     Struct {length = 8;  tag = 2; fields = [Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""]});
+    ("\xB9\x02\x00\x80\x90\x00\x80\x90\x00\x80\x90",
+     Struct {length = 9;  tag = 2; fields = [Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""; List []]});
+    ("\xBA\x02\x00\x80\x90\x00\x80\x90\x00\x80\x90\x00",
+     Struct {length = 10; tag = 2; fields = [
+      Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L;
+     ]});
+    ("\xBB\x02\x00\x80\x90\x00\x80\x90\x00\x80\x90\x00\x80",
+     Struct {length = 11; tag = 2; fields = [
+      Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""
+     ]});
+    ("\xBC\x02\x00\x80\x90\x00\x80\x90\x00\x80\x90\x00\x80\x90",
+     Struct {length = 12; tag = 2; fields = [
+      Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""; List []
+     ]});
+    ("\xBD\x02\x00\x80\x90\x00\x80\x90\x00\x80\x90\x00\x80\x90\x00",
+     Struct {length = 13; tag = 2; fields = [
+      Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""; List [];
+      Int 0L
+     ]});
+    ("\xBE\x02\x00\x80\x90\x00\x80\x90\x00\x80\x90\x00\x80\x90\x00\x80",
+     Struct {length = 14; tag = 2; fields = [
+      Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""; List [];
+      Int 0L; String ""
+     ]});
+    ("\xBF\x02\x00\x80\x90\x00\x80\x90\x00\x80\x90\x00\x80\x90\x00\x80\x90",
+     Struct {length = 15; tag = 2; fields = [
+      Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""; List []; Int 0L; String ""; List [];
+      Int 0L; String ""; List []
+     ]});
     ("\xB3\x4E\x01\x90\xA0", Node {id = 1L; labels = []; properties = []});
     ("\xB5\x52\x0B\x02\x03\x85KNOWS\xA1\x84name\x87example",
      Relationship {id = 11L; start_node_id = 2L; end_node_id = 3L; typ = "KNOWS"; properties = ["name", String "example"]});

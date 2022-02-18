@@ -14,6 +14,7 @@ module rec Message : sig
     | String of string
     | List of t list
     | Dict of t alist
+    | Struct of {length: int; tag: int; fields: t list}
     | Node of Node.t
     | Relationship of Relationship.t
     | UnboundRelationship of UnboundRelationship.t
@@ -46,6 +47,7 @@ end = struct
     | String of string
     | List of t list
     | Dict of t alist
+    | Struct of {length: int; tag: int; fields: t list}
     | Node of Node.t
     | Relationship of Relationship.t
     | UnboundRelationship of UnboundRelationship.t
@@ -251,7 +253,8 @@ and parse_structs length tag (data:Bitstring.t) =
   | 0x59 when length = 4 -> parse_fields length data
     (function [Int s; Float x; Float y; Float z] -> Ok (Point3D {srid = s; x = x; y = y; z = z})
      | _ -> Error "Cound not parse Point3D")
-  | _ -> Error "Unknown struct", data
+  | _ -> parse_fields length data
+    (fun lst -> Ok (Struct {length = length; tag = tag; fields = lst}))
 
 and parse_fields length (data:Bitstring.t) fn =
   let open Tuple2 in
@@ -304,6 +307,9 @@ let rec serialize message =
   | String str -> serialize_string str
   | List lst -> serialize_list lst
   | Dict dct -> serialize_dict dct
+  | Struct {length; tag; fields} ->
+      let%bitstring header = {| 0xb : 4; length : 4 : unsigned; tag : 8 : unsigned |} in
+      Bitstring.concat @@ header::(List.map ~f:serialize fields)
   | Node {id; labels; properties} -> let%bitstring header = {| 0xb34e : 16 |} in
       Bitstring.concat [
         header;
